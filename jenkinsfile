@@ -1,0 +1,80 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_DEFAULT_REGION = "ap-south-1"
+        TF_IN_AUTOMATION   = "true"
+    }
+
+    stages {
+
+        stage('Checkout Code') {
+            steps {
+                git url: 'https://github.com/Saloni-Shinde-123/terraform.git',
+                    branch: 'main'
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-creds']
+                ]) {
+                    dir('tf.variable program') {
+                        sh 'terraform init'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Validate') {
+            steps {
+                dir('tf.variable program') {
+                    sh 'terraform validate'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-creds']
+                ]) {
+                    dir('tf.variable program') {
+                        sh '''
+                        terraform plan \
+                          -var-file=dev.tfvars
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-creds']
+                ]) {
+                    dir('tf.variable program') {
+                        sh '''
+                        terraform apply -auto-approve \
+                          -var-file=dev.tfvars
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ EC2 instance created successfully using Terraform"
+        }
+        failure {
+            echo "❌ Terraform deployment failed"
+        }
+    }
+}
